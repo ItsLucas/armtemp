@@ -101,9 +101,13 @@ pub struct SensorSnapshot {
     pub max_clock_mhz: Option<u32>,
     /// Nominal bus/reference clock in MHz (100 on Snapdragon X; informational).
     pub bus_speed_mhz: Option<u32>,
-    /// Package power in watts. Always `None` — confirmed unavailable from
-    /// userspace on this firmware (see SENSORS.md §3).
+    /// Whole-package power is not exposed by the measured counter set.
     pub power_w: Option<f64>,
+    /// Sum of CPU_CLUSTER_0/1/2 when all three Energy Meter channels are
+    /// valid. This does not include GPU or other SoC rails.
+    pub cpu_cluster_total_w: Option<f64>,
+    /// Each CPU cluster's Energy Meter power in watts, or `None` if absent.
+    pub cluster_power_w: [Option<f64>; 3],
     /// The registry `Identifier` string, e.g. "ARMv8 (64-bit) Family 8 Model 2
     /// Revision 201" — the machine's real CPUID-derived identity, shown in
     /// the UI's CPUID field instead of repeating the marketing model string.
@@ -137,6 +141,8 @@ impl Default for SensorSnapshot {
             max_clock_mhz: None,
             bus_speed_mhz: None,
             power_w: None,
+            cpu_cluster_total_w: None,
+            cluster_power_w: [None; 3],
             cpu_identifier: None,
             detection_basis: String::new(),
             tick: 0,

@@ -94,6 +94,18 @@ unavailable from any userspace surface found so far; ARMtemp shows `power_w: Non
 honestly rather than wiring up a value that doesn't exist. Reading it would require the
 same driver-IOCTL route as per-core temperature (§5).
 
+**Additional Surface Laptop 7 X1E-80-100 observation (2026-09-19):** this is a
+different machine and counter set from the X1P64100 probe above. Its Windows
+`Energy Meter` object exposes `CPU_CLUSTER_0`, `_1`, and `_2` through the
+standard PDH `Power` counter (mW). A 12-thread CPU load changed the three
+cluster readings; the counter resource says Power is in milliwatts. The
+provider is `PowerMeterCounter` / `umpoext.dll`; its EMI interface belongs to
+the Qualcomm PEP device `QCOM0C17` (`qcpep8380.sys`). ARMtemp now reads these
+named cluster channels when present and displays their sum as **CPU cluster
+power**, not package or whole-SoC power. `SYS` and `PSU_USB` are separate
+channels, and `_Total` was zero on the measured machine. Availability on other
+Snapdragon X / X2 models remains unverified.
+
 ---
 
 ## 4. What does NOT work (do not use)

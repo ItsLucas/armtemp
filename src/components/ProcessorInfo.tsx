@@ -78,8 +78,25 @@ export function ProcessorInfo({ snap, status, unit }: Props) {
           <Field label="CPUID" value={cpuidStr} full />
         </div>
       </div>
+      {snap?.cluster_power_w.some((value) => value !== null) && (
+        <div className="groupbox">
+          <span className="groupbox-legend">CPU Cluster Power</span>
+          <div className="proc-grid">
+            <Field label="Clusters Σ" value={formatWatts(snap.cpu_cluster_total_w)} full
+              title="Sum of the three CPU_CLUSTER Energy Meter channels; not whole-SoC or package power" />
+            {snap.cluster_power_w.map((value, index) => (
+              <Field key={index} label={`Cluster ${index}`} value={formatWatts(value)}
+                title={`Windows Energy Meter CPU_CLUSTER_${index} power`} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function formatWatts(value: number | null): string {
+  return value !== null && Number.isFinite(value) ? `${value.toFixed(2)} W` : "—";
 }
 
 function Field({
