@@ -33,6 +33,12 @@ export function ProcessorInfo({ snap, status, unit }: Props) {
   // Live thermal-throttle indicator: any valid ACPI zone reporting an active
   // passive limit (< 100 %) means the firmware is throttling right now.
   const throttled = snap ? snap.zones.some((z) => z.throttled) : null;
+  const hasEnergyPower = snap && (
+    snap.cluster_power_w.some((value) => value !== null)
+    || snap.gpu_power_w !== null
+    || snap.sys_power_w !== null
+    || snap.energy_total_w !== null
+  );
 
   return (
     <div className="proc-section">
@@ -78,16 +84,20 @@ export function ProcessorInfo({ snap, status, unit }: Props) {
           <Field label="CPUID" value={cpuidStr} full />
         </div>
       </div>
-      {snap?.cluster_power_w.some((value) => value !== null) && (
+      {hasEnergyPower && (
         <div className="groupbox">
-          <span className="groupbox-legend">CPU Cluster Power</span>
+          <span className="groupbox-legend">Energy Meter Power</span>
           <div className="proc-grid">
-            <Field label="Clusters Σ" value={formatWatts(snap.cpu_cluster_total_w)} full
-              title="Sum of the three CPU_CLUSTER Energy Meter channels; not whole-SoC or package power" />
             {snap.cluster_power_w.map((value, index) => (
               <Field key={index} label={`Cluster ${index}`} value={formatWatts(value)}
                 title={`Windows Energy Meter CPU_CLUSTER_${index} power`} />
             ))}
+            <Field label="GPU" value={formatWatts(snap.gpu_power_w)}
+              title="Windows Energy Meter GPU power" />
+            <Field label="SYS" value={formatWatts(snap.sys_power_w)}
+              title="Windows Energy Meter SYS power" />
+            <Field label="Meter _Total" value={formatWatts(snap.energy_total_w)}
+              title="Raw Windows Energy Meter _Total reading; not calculated by ARMtemp" />
           </div>
         </div>
       )}

@@ -103,11 +103,13 @@ pub struct SensorSnapshot {
     pub bus_speed_mhz: Option<u32>,
     /// Whole-package power is not exposed by the measured counter set.
     pub power_w: Option<f64>,
-    /// Sum of CPU_CLUSTER_0/1/2 when all three Energy Meter channels are
-    /// valid. This does not include GPU or other SoC rails.
-    pub cpu_cluster_total_w: Option<f64>,
     /// Each CPU cluster's Energy Meter power in watts, or `None` if absent.
     pub cluster_power_w: [Option<f64>; 3],
+    /// Named GPU and SYS Energy Meter readings in watts, when present.
+    pub gpu_power_w: Option<f64>,
+    pub sys_power_w: Option<f64>,
+    /// The provider's raw `_Total` reading, not a sum calculated by ARMtemp.
+    pub energy_total_w: Option<f64>,
     /// The registry `Identifier` string, e.g. "ARMv8 (64-bit) Family 8 Model 2
     /// Revision 201" — the machine's real CPUID-derived identity, shown in
     /// the UI's CPUID field instead of repeating the marketing model string.
@@ -141,8 +143,10 @@ impl Default for SensorSnapshot {
             max_clock_mhz: None,
             bus_speed_mhz: None,
             power_w: None,
-            cpu_cluster_total_w: None,
             cluster_power_w: [None; 3],
+            gpu_power_w: None,
+            sys_power_w: None,
+            energy_total_w: None,
             cpu_identifier: None,
             detection_basis: String::new(),
             tick: 0,

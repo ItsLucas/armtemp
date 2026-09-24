@@ -127,8 +127,8 @@ struct Query {
     /// correctly per-cluster on heterogeneous chips. Optional — some
     /// firmware may not expose it.
     perf_pct: Option<isize>,
-    /// Optional Windows Energy Meter power channels. These are cluster rails,
-    /// not a package-power counter; the _Total instance is not usable here.
+    /// Optional Windows Energy Meter power channels. The instance named
+    /// `_Total` is reported as-is, not treated as package power.
     energy_power: Option<isize>,
 }
 
@@ -254,19 +254,32 @@ fn read_single(hcounter: isize) -> Option<f64> {
     }
 }
 
-/// `Energy Meter\Power` reports milliwatts. Only named CPU clusters contribute
-/// to the displayed sum; `SYS`, `PSU_USB`, and `_Total` have different meanings.
-fn cpu_cluster_power(samples: Vec<(String, f64)>) -> [Option<f64>; 3] {
-    let mut watts = [None; 3];
+/// `Energy Meter\Power` reports milliwatts. Keep each named instance separate;
+/// the provider's `_Total` is not a sum calculated by ARMtemp.
+#[derive(Default, Debug, PartialEq)]
+struct EnergyMeterPower {
+    clusters: [Option<f64>; 3],
+    gpu: Option<f64>,
+    sys: Option<f64>,
+    total: Option<f64>,
+}
+
+fn energy_meter_power(samples: Vec<(String, f64)>) -> EnergyMeterPower {
+    let mut watts = EnergyMeterPower::default();
     for (name, milliwatts) in samples {
         if !milliwatts.is_finite() || milliwatts < 0.0 {
             continue;
         }
-        for (index, value) in watts.iter_mut().enumerate() {
-            if name.eq_ignore_ascii_case(&format!("CPU_CLUSTER_{index}")) {
-                *value = Some(milliwatts / 1000.0);
-            }
-        }
+        let slot = match name.to_ascii_uppercase().as_str() {
+            "CPU_CLUSTER_0" => &mut watts.clusters[0],
+            "CPU_CLUSTER_1" => &mut watts.clusters[1],
+            "CPU_CLUSTER_2" => &mut watts.clusters[2],
+            "GPU" => &mut watts.gpu,
+            "SYS" => &mut watts.sys,
+            "_TOTAL" => &mut watts.total,
+            _ => continue,
+        };
+        *slot = Some(milliwatts / 1000.0);
     }
     watts
 }
@@ -535,12 +548,11 @@ fn build_snapshot(
     }
     let clock_mhz = effective_clock_mhz(&perf_pct_by_core, &identity.per_core_mhz)
         .or_else(|| read_single(q.freq).map(|v| v.round() as u32));
-    let cluster_power_w = q
+    let energy_power_w = q
         .energy_power
         .map(read_array)
-        .map(cpu_cluster_power)
-        .unwrap_or([None; 3]);
-    let cpu_cluster_total_w = cluster_power_w.iter().copied().sum();
+        .map(energy_meter_power)
+        .unwrap_or_default();
     let base_clock_mhz = if profile.base_ghz > 0.0 {
         Some((profile.base_ghz * 1000.0).round() as u32)
     } else {
@@ -577,8 +589,10 @@ fn build_snapshot(
         max_clock_mhz,
         bus_speed_mhz: Some(100), // nominal reference clock on Snapdragon X
         power_w: None,
-        cpu_cluster_total_w,
-        cluster_power_w,
+        cluster_power_w: energy_power_w.clusters,
+        gpu_power_w: energy_power_w.gpu,
+        sys_power_w: energy_power_w.sys,
+        energy_total_w: energy_power_w.total,
         cpu_identifier: identity.identifier.clone(),
         detection_basis: basis.label().to_string(),
         tick: 0,
@@ -726,23 +740,21 @@ mod tests {
     }
 
     #[test]
-    fn cpu_power_uses_only_all_three_valid_named_clusters() {
+    fn energy_meter_keeps_named_channels_and_raw_total_separate() {
         let readings = vec![
             ("cpu_cluster_0".into(), 2620.0),
             ("CPU_CLUSTER_1".into(), 790.0),
             ("CPU_CLUSTER_2".into(), 0.0),
+            ("gpu".into(), 20.0),
             ("SYS".into(), 26000.0),
             ("_Total".into(), 0.0),
+            ("PSU_USB".into(), 1000.0),
         ];
-        let watts = cpu_cluster_power(readings);
-        assert_eq!(watts, [Some(2.62), Some(0.79), Some(0.0)]);
-        assert_eq!(watts.into_iter().sum::<Option<f64>>(), Some(3.41));
-        assert_eq!(
-            cpu_cluster_power(vec![("CPU_CLUSTER_0".into(), 1000.0)])
-                .into_iter()
-                .sum::<Option<f64>>(),
-            None
-        );
-        assert_eq!(cpu_cluster_power(vec![("CPU_CLUSTER_0".into(), f64::NAN)])[0], None);
+        let watts = energy_meter_power(readings);
+        assert_eq!(watts.clusters, [Some(2.62), Some(0.79), Some(0.0)]);
+        assert_eq!(watts.gpu, Some(0.02));
+        assert_eq!(watts.sys, Some(26.0));
+        assert_eq!(watts.total, Some(0.0));
+        assert_eq!(energy_meter_power(vec![("GPU".into(), f64::NAN)]).gpu, None);
     }
 }

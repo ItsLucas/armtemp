@@ -32,7 +32,7 @@ ARMtemp reads real ACPI thermal-zone sensors and displays a single honest CPU te
 
 ## Features
 
-- Real telemetry: one CPU temperature via ACPI thermal zones (with session Min/Max/Avg), genuinely per-core load, live CPU speed/identity, and CPU-cluster power where Windows exposes `Energy Meter`
+- Real telemetry: one CPU temperature via ACPI thermal zones (with session Min/Max/Avg), genuinely per-core load, live CPU speed/identity, and named power channels where Windows exposes `Energy Meter`
 - 3 UI layouts — Classic, Cards, Dashboard
 - Mini mode — the same window, stripped to the model name, the CPU temperature, and an averaged per-core load row
 - Live system-tray icon showing the current CPU temperature, with a right-click menu
@@ -42,7 +42,7 @@ ARMtemp reads real ACPI thermal-zone sensors and displays a single honest CPU te
 
 **Honest limitations (firmware, not by choice):**
 - **Per-core temperatures** aren't exposed by any userspace surface on Snapdragon X — the firmware exposes ~17 valid *zone* temperatures, not one per core. Rather than guess which zone maps to which core, ARMtemp reports one CPU temperature (the hottest valid zone) and shows genuinely per-core *load* instead. True per-core temps would need a signed kernel driver or private Surface/Qualcomm SMF IOCTLs.
-- **Voltage and whole-package power** aren't exposed. On machines with `CPU_CLUSTER_0/1/2` Energy Meter channels, ARMtemp shows each cluster's measured power and their sum, excluding GPU and other SoC rails. Missing readings show `—`.
+- **Voltage and whole-package power** aren't exposed. Where available, ARMtemp shows `CPU_CLUSTER_0/1/2`, `GPU`, `SYS`, and the meter's raw `_Total` reading separately. `_Total` is not calculated by ARMtemp and may be zero even when other channels are active. Missing readings show `—`.
 
 ---
 
@@ -79,7 +79,7 @@ Reading temperatures on Snapdragon X under Windows is genuinely hard — the sta
 
 ARMtemp's working data source is the **`Thermal Zone Information`** performance-counter object, which exposes ACPI thermal zones (`\_SB.TZxx`). Sentinels/inactive zones (≤ 0 °C) are filtered out; the rest are converted from Kelvin to °C. The hottest valid zone is reported as the single CPU temperature — there is no per-core thermal surface on this firmware, so ARMtemp doesn't attribute a temperature to any individual core; per-core rows show real per-core load instead.
 
-**Implementation note:** ARMtemp reads these counters natively via the Windows **PDH** (Performance Data Helper) API (`pdh.dll`) — no subprocess, no COM/WMI. This also sidesteps the failure the Rust `wmi` crate's COM/`IWbemServices` path hit when called from inside a Tauri process (`WBEM_E_NOT_FOUND`; see [`SENSORS.md`](./SENSORS.md) §7 for that history). A dedicated worker thread owns the PDH query handles and collects once per poll tick (~1.5–2s); the same counters also yield a genuinely *live* CPU frequency, unlike `Win32_Processor.CurrentClockSpeed`, which mirrors the static max on this firmware. When available, `\Energy Meter(*)\Power` supplies CPU-cluster readings in milliwatts, which ARMtemp converts to watts. The sum uses only valid `CPU_CLUSTER_0/1/2` instances, never `SYS`, `PSU_USB`, or the synthetic `_Total`.
+**Implementation note:** ARMtemp reads these counters natively via the Windows **PDH** (Performance Data Helper) API (`pdh.dll`) — no subprocess, no COM/WMI. This also sidesteps the failure the Rust `wmi` crate's COM/`IWbemServices` path hit when called from inside a Tauri process (`WBEM_E_NOT_FOUND`; see [`SENSORS.md`](./SENSORS.md) §7 for that history). A dedicated worker thread owns the PDH query handles and collects once per poll tick (~1.5–2s); the same counters also yield a genuinely *live* CPU frequency, unlike `Win32_Processor.CurrentClockSpeed`, which mirrors the static max on this firmware. When available, `\Energy Meter(*)\Power` supplies named CPU-cluster, GPU, SYS, and `_Total` readings in milliwatts, which ARMtemp converts to watts without calculating a sum.
 
 ---
 

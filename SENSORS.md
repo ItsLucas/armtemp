@@ -100,11 +100,12 @@ different machine and counter set from the X1P64100 probe above. Its Windows
 standard PDH `Power` counter (mW). A 12-thread CPU load changed the three
 cluster readings; the counter resource says Power is in milliwatts. The
 provider is `PowerMeterCounter` / `umpoext.dll`; its EMI interface belongs to
-the Qualcomm PEP device `QCOM0C17` (`qcpep8380.sys`). ARMtemp now reads these
-named cluster channels when present and displays their sum as **CPU cluster
-power**, not package or whole-SoC power. `SYS` and `PSU_USB` are separate
-channels, and `_Total` was zero on the measured machine. Availability on other
-Snapdragon X / X2 models remains unverified.
+the Qualcomm PEP device `QCOM0C17` (`qcpep8380.sys`). ARMtemp reads the named
+CPU cluster, GPU, SYS, and `_Total` channels independently when present.
+`PSU_USB` is a separate channel. The provider's `_Total` was zero while SYS
+was nonzero on the measured machine, so ARMtemp displays `_Total` as a raw
+reading rather than calculating or treating it as package/whole-SoC power.
+Availability on other Snapdragon X / X2 models remains unverified.
 
 ---
 
